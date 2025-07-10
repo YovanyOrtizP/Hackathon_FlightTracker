@@ -72,7 +72,7 @@ fun LiveUpdateSample() {
             Button(onClick = {
                 onCheckout()
                 scope.launch {
-                    snackbarHostState.showSnackbar("Order placed")
+                    snackbarHostState.showSnackbar("Flight tracking")
                 }
             }) {
                 Text("Checkout")

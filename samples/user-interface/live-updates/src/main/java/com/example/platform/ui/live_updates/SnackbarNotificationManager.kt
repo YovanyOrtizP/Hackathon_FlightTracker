@@ -19,8 +19,9 @@ package com.example.platform.ui.live_updates
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.NotificationManager.IMPORTANCE_DEFAULT
+import android.app.PendingIntent
 import android.content.Context
-import androidx.core.app.NotificationCompat.ProgressStyle
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Handler
@@ -28,215 +29,170 @@ import android.os.Looper
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger
 
 object SnackbarNotificationManager {
     private lateinit var notificationManager: NotificationManager
     private lateinit var appContext: Context
-    const val CHANNEL_ID = "live_updates_channel_id"
+    private const val CHANNEL_ID = "live_updates_channel_id"
     private const val CHANNEL_NAME = "live_updates_channel_name"
     private const val NOTIFICATION_ID = 1234
 
+    private const val SIMULATED_FLIGHT_DURATION_MS = 60_000L  // 1 minuto real
+    private const val DISPLAYED_FLIGHT_DURATION_MINUTES = 60  // 1 hora visual
+
+    private var flightStartTime: Long = 0L
+
+    private enum class OrderState(val delay: Long) {
+        INITIALIZING(2000),
+        FLIGHT_ROUTE(4000),
+    }
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun initialize(context: Context, notifManager: NotificationManager) {
+        appContext = context
         notificationManager = notifManager
         val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, IMPORTANCE_DEFAULT)
-        appContext = context
         notificationManager.createNotificationChannel(channel)
-    }
-
-    private enum class OrderState(val delay: Long) {
-        INITIALIZING(5000) {
-            @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-            override fun buildNotification(): NotificationCompat.Builder {
-                return buildBaseNotification(appContext, INITIALIZING)
-                    .setSmallIcon(R.drawable.ic_launcher_foreground)
-                    .setContentTitle("You order is being placed")
-                    .setContentText("Confirming with bakery...")
-                    .setStyle(buildBaseProgressStyle(INITIALIZING).setProgressIndeterminate(true))
-            }
-        },
-        FOOD_PREPARATION(9000) {
-            @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-            override fun buildNotification(): NotificationCompat.Builder {
-                return buildBaseNotification(appContext, FOOD_PREPARATION)
-                    .setContentTitle("Your order is being prepared")
-                    .setContentText("Next step will be delivery")
-                    .setLargeIcon(
-                        IconCompat.createWithResource(
-                            appContext, R.drawable.cupcake
-                        ).toIcon(appContext)
-                    )
-                    .setStyle(buildBaseProgressStyle(FOOD_PREPARATION).setProgress(25))
-            }
-        },
-        FOOD_ENROUTE(13000) {
-            @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-            override fun buildNotification(): NotificationCompat.Builder {
-                return buildBaseNotification(appContext, FOOD_ENROUTE)
-                    .setContentTitle("Your order is on its way")
-                    .setContentText("Enroute to destination")
-                    .setStyle(
-                        buildBaseProgressStyle(FOOD_ENROUTE)
-                            .setProgressTrackerIcon(
-                                IconCompat.createWithResource(
-                                    appContext, R.drawable.shopping_bag
-                                )
-                            )
-                            .setProgress(50)
-                    )
-                    .setLargeIcon(
-                        IconCompat.createWithResource(
-                            appContext, R.drawable.cupcake
-                        ).toIcon(appContext)
-                    )
-            }
-        },
-        FOOD_ARRIVING(18000) {
-            @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-            override fun buildNotification(): NotificationCompat.Builder {
-                return buildBaseNotification(appContext, FOOD_ARRIVING)
-                    .setContentTitle("Your order is arriving and has been dropped off")
-                    .setContentText("Enjoy & don't forget to refrigerate any perishable items.")
-                    .setStyle(
-                        buildBaseProgressStyle(FOOD_ARRIVING)
-                            .setProgressTrackerIcon(
-                                IconCompat.createWithResource(
-                                    appContext, R.drawable.delivery_truck
-                                )
-                            )
-                            .setProgress(75)
-                    )
-                    .setLargeIcon(
-                        IconCompat.createWithResource(
-                            appContext, R.drawable.cupcake
-                        ).toIcon(appContext)
-                    )
-            }
-        },
-        ORDER_COMPLETE(21000) {
-            @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-            override fun buildNotification(): NotificationCompat.Builder {
-                return buildBaseNotification(appContext, ORDER_COMPLETE)
-                    .setContentTitle("Your order is complete.")
-                    .setContentText("Thank you for using JetSnack for your snacking needs.")
-                    .setStyle(
-                        buildBaseProgressStyle(ORDER_COMPLETE)
-                            .setProgressTrackerIcon(
-                                IconCompat.createWithResource(
-                                    appContext, R.drawable.check_circle
-                                )
-                            )
-                            .setProgress(100)
-                    )
-                    .setLargeIcon(
-                        IconCompat.createWithResource(
-                            appContext, R.drawable.cupcake
-                        ).toIcon(appContext)
-                    )
-            }
-        };
-
-
-        @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-        fun buildBaseProgressStyle(orderState: OrderState): ProgressStyle {
-            val pointColor = Color.valueOf(236f, 183f, 255f, 1f).toArgb()
-            val segmentColor = Color.valueOf(134f, 247f, 250f, 1f).toArgb()
-            var progressStyle = NotificationCompat.ProgressStyle()
-                .setProgressPoints(
-                    listOf(
-                        ProgressStyle.Point(25).setColor(pointColor),
-                        ProgressStyle.Point(50).setColor(pointColor),
-                        ProgressStyle.Point(75).setColor(pointColor),
-                        ProgressStyle.Point(100).setColor(pointColor)
-                    )
-                ).setProgressSegments(
-                    listOf(
-                        ProgressStyle.Segment(25).setColor(segmentColor),
-                        ProgressStyle.Segment(25).setColor(segmentColor),
-                        ProgressStyle.Segment(25).setColor(segmentColor),
-                        ProgressStyle.Segment(25).setColor(segmentColor)
-
-                    )
-                )
-            when (orderState) {
-                INITIALIZING -> {}
-                FOOD_PREPARATION -> {}
-                FOOD_ENROUTE -> progressStyle.setProgressPoints(
-                    listOf(
-                        ProgressStyle.Point(25).setColor(pointColor)
-                    )
-                )
-
-                FOOD_ARRIVING -> progressStyle.setProgressPoints(
-                    listOf(
-                        ProgressStyle.Point(25).setColor(pointColor),
-                        ProgressStyle.Point(50).setColor(pointColor)
-                    )
-                )
-
-                ORDER_COMPLETE -> progressStyle.setProgressPoints(
-                    listOf(
-                        ProgressStyle.Point(25).setColor(pointColor),
-                        ProgressStyle.Point(50).setColor(pointColor),
-                        ProgressStyle.Point(75).setColor(pointColor)
-                    )
-                )
-            }
-            return progressStyle
-        }
-
-        @RequiresApi(Build.VERSION_CODES.O)
-        fun buildBaseNotification(appContext: Context, orderState: OrderState): NotificationCompat.Builder {
-            val notificationBuilder = NotificationCompat.Builder(appContext, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setOngoing(true)
-                .setRequestPromotedOngoing(true)
-
-            when (orderState) {
-                INITIALIZING -> {}
-                FOOD_PREPARATION -> {}
-                FOOD_ENROUTE -> {}
-                FOOD_ARRIVING ->
-                    notificationBuilder
-                        .addAction(
-                            NotificationCompat.Action.Builder(null, "Got it", null).build()
-                        )
-                        .addAction(
-                            NotificationCompat.Action.Builder(null, "Tip", null).build()
-                        )
-                ORDER_COMPLETE ->
-                    notificationBuilder
-                        .addAction(
-                            NotificationCompat.Action.Builder(
-                                null, "Rate delivery", null).build()
-                        )
-            }
-            return notificationBuilder
-        }
-
-        abstract fun buildNotification(): NotificationCompat.Builder
     }
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
     fun start() {
-        for (state in OrderState.entries) {
-            val notification = state.buildNotification().build()
+        Handler(Looper.getMainLooper()).postDelayed({
+            val notification = buildFlightNotification(null).build()
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        }, OrderState.INITIALIZING.delay)
 
-            Logger.getLogger("canPostPromotedNotifications")
-                .log(
-                    Level.INFO,
-                    notificationManager.canPostPromotedNotifications().toString())
-            Logger.getLogger("hasPromotableCharacteristics")
-                .log(
-                    Level.INFO,
-                    notification.hasPromotableCharacteristics().toString())
+        Handler(Looper.getMainLooper()).postDelayed({
+            flightStartTime = System.currentTimeMillis()
+            logPromotableStatus()
+            animateFlightProgress()
+        }, OrderState.INITIALIZING.delay + OrderState.FLIGHT_ROUTE.delay)
+    }
 
-            Handler(Looper.getMainLooper()).postDelayed({
-                notificationManager.notify(NOTIFICATION_ID, notification)
-            }, state.delay)
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun animateFlightProgress() {
+        val handler = Handler(Looper.getMainLooper())
+        val totalDuration = SIMULATED_FLIGHT_DURATION_MS
+        val steps = 60
+        val interval = totalDuration / steps
+
+        for (i in 0..steps) {
+            handler.postDelayed({
+                val progress = if (i < 100) (i * 100 / steps) else 100
+                val builder = buildFlightNotification(progress)
+                notificationManager.notify(NOTIFICATION_ID, builder.build())
+            }, i * interval)
         }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun buildFlightNotification(progress: Int?): NotificationCompat.Builder {
+        val origin = "MEX"
+        val destination = "SFO"
+        val isIndeterminate = progress == null
+        val isComplete = progress == 100
+
+        val title = when {
+            isIndeterminate -> "Yovany's flight is about to start"
+            isComplete -> "Yovany's flight has arrived to SFO"
+            else -> "Flying - ${formatRemainingTime(progress ?: 0)}"
+        }
+
+        val timeDetails = if (!isIndeterminate && flightStartTime > 0) {
+            val takeoff = formatTime(flightStartTime)
+            val landing = formatTime(flightStartTime + DISPLAYED_FLIGHT_DURATION_MINUTES * 60_000L)
+            "\nTakeoff: $takeoff  •  Landing ETA: $landing"
+        } else ""
+
+        val text = when {
+            isIndeterminate -> "Get ready..."
+            isComplete -> "Yovany landed at his destination"
+            else -> "Yovany is flying from $origin to $destination"
+            //else -> String.format("%-75s %s", origin, destination)
+        } + timeDetails
+
+        val style = buildBaseProgressStyle()
+        if (isIndeterminate) {
+            style.setProgressIndeterminate(true)
+        } else {
+            style.setProgress(progress ?: 0)
+        }
+
+        return NotificationCompat.Builder(appContext, CHANNEL_ID)
+            .setSmallIcon(R.drawable.app)
+            .setOngoing(true)
+            .setRequestPromotedOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(style)
+            .addAction(getShareAction())
+    }
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun buildBaseProgressStyle(): NotificationCompat.ProgressStyle {
+        val pointColor = Color.valueOf(236f, 183f, 255f, 1f).toArgb()
+        val segmentColor = Color.valueOf(253f, 255f, 255f, 1f).toArgb()
+
+        return NotificationCompat.ProgressStyle()
+            .setProgressPoints(listOf(NotificationCompat.ProgressStyle.Point(100).setColor(pointColor)))
+            .setProgressSegments(listOf(NotificationCompat.ProgressStyle.Segment(100).setColor(segmentColor)))
+            .setStyledByProgress(true)
+            .setProgressTrackerIcon(
+                IconCompat.createWithResource(appContext, R.drawable.flight)
+            )
+    }
+
+    private fun getShareAction(): NotificationCompat.Action {
+        return NotificationCompat.Action.Builder(
+            null,
+            "Share Flight",
+            createShareIntent(appContext)
+        ).build()
+    }
+
+    private fun createShareIntent(context: Context): PendingIntent {
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, "Check out Yovany's flight! https://www.expedia.com/mobile.deeplink/flightTracker")
+        }
+
+        return PendingIntent.getActivity(
+            context,
+            0,
+            Intent.createChooser(shareIntent, "Share flight via"),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
+    private fun formatRemainingTime(progress: Int): String {
+        val totalMinutes = DISPLAYED_FLIGHT_DURATION_MINUTES
+        val remainingMinutes = ((100 - progress) * totalMinutes) / 100
+
+        val hours = remainingMinutes / 60
+        val minutes = remainingMinutes % 60
+
+        return when {
+            hours > 0 -> String.format("%dh %02dm remaining", hours, minutes)
+            else -> String.format("%d min remaining", minutes)
+        }
+    }
+
+    private fun formatTime(timestamp: Long): String {
+        val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+        return formatter.format(Date(timestamp))
+    }
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun logPromotableStatus() {
+        val tempNotification = buildFlightNotification(0).build()
+        Logger.getLogger("canPostPromotedNotifications")
+            .log(Level.INFO, notificationManager.canPostPromotedNotifications().toString())
+        Logger.getLogger("hasPromotableCharacteristics")
+            .log(Level.INFO, tempNotification.hasPromotableCharacteristics().toString())
     }
 }
