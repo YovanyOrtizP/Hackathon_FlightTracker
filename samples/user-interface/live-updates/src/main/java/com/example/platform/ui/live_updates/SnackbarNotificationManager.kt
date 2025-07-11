@@ -41,8 +41,8 @@ object SnackbarNotificationManager {
     private const val CHANNEL_NAME = "live_updates_channel_name"
     private const val NOTIFICATION_ID = 1234
 
-    private const val SIMULATED_FLIGHT_DURATION_MS = 60_000L  // 1 minuto real
-    private const val DISPLAYED_FLIGHT_DURATION_MINUTES = 60  // 1 hora visual
+    private const val SIMULATED_FLIGHT_DURATION_MS = 60_000L
+    private const val DISPLAYED_FLIGHT_DURATION_MINUTES = 60
 
     private var flightStartTime: Long = 0L
 
@@ -112,7 +112,6 @@ object SnackbarNotificationManager {
             isIndeterminate -> "Get ready..."
             isComplete -> "Yovany landed at his destination"
             else -> "Yovany is flying from $origin to $destination"
-            //else -> String.format("%-75s %s", origin, destination)
         } + timeDetails
 
         val style = buildBaseProgressStyle()
